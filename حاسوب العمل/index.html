@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Windows 11 Lock Screen</title>
+
+    <style>
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #000;
+        }
+
+        /* رسالة التنبيه عند الوضع الطولي */
+        .rotate-warning {
+            display: none;
+            /* مخفية افتراضياً */
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #1a1a1a;
+            color: white;
+            z-index: 9999;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .rotate-warning svg {
+            width: 80px;
+            fill: #70a0db;
+            margin-bottom: 20px;
+            animation: rotate-anim 2s infinite ease-in-out;
+        }
+
+        @keyframes rotate-anim {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            50% {
+                transform: rotate(-90deg);
+            }
+
+            100% {
+                transform: rotate(0deg);
+            }
+        }
+
+        /* إظهار الرسالة فقط في الوضع الطولي */
+        @media (orientation: portrait) {
+            .rotate-warning {
+                display: flex;
+            }
+
+            #lockscreen-container {
+                display: none;
+                /* إخفاء واجهة ويندوز في الوضع الطولي */
+            }
+        }
+
+        /* واجهة القفل (الوضع العرضي) */
+        #lockscreen-container {
+            width: 100vw;
+            height: 100vh;
+            background-image: url('/images/lockScreeenBackground.png');
+            /* صورتك هنا */
+            background-size: cover;
+            background-position: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 999;
+            transition: transform 0.8s cubic-bezier(0.85, 0, 0.15, 1), opacity 0.5s;
+        }
+
+        #lockscreen-container::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(20px);
+            z-index: 1;
+        }
+
+        .content {
+            position: relative;
+            z-index: 2;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .profile {
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            background-image: url('/images/profile.png');
+            background-size: cover;
+            background-color: #ddd;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        .user-name {
+            color: white;
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 25px;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        .input-group {
+            display: flex;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-bottom: 2px solid #70a0db;
+            border-radius: 4px;
+            width: 280px;
+        }
+
+        .password {
+            background: transparent;
+            border: none;
+            padding: 10px 15px;
+            color: white;
+            flex-grow: 1;
+            outline: none;
+        }
+
+        .password::placeholder {
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .submit-btn {
+            background: transparent;
+            border: none;
+            color: white;
+            font-size: 20px;
+            padding: 5px 15px;
+            cursor: pointer;
+        }
+
+        .hint {
+            margin-top: 20px;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 14px;
+            direction: rtl;
+        }
+
+
+        /* شاشة سطح المكتب (مخفية في البداية) */
+        #desktop-screen {
+            width: 100vw;
+            height: 100vh;
+            background-image: url('/images/desktop-wallpaper.jpg');
+            /* خلفية سطح المكتب */
+            background-size: cover;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            /* لتثبيت شريط المهام في الأسفل */
+            opacity: 0;
+            transition: opacity 1s ease-in;
+        }
+
+        .taskbar {
+            width: 100%;
+            height: 48px;
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(15px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* كلاس لإخفاء شاشة القفل عند النجاح */
+        .unlock-animation {
+            transform: translateY(-100%);
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        /* --- تنسيقات الجدول الخاص بنظام المراقبة داخل الـ Desktop فقط --- */
+        :root {
+            --bg-color: #0d1117;
+            --card-bg: #161b22;
+            --text-color: #c9d1d9;
+            --border-color: #30363d;
+            --accent-red: #f85149;
+            --accent-green: #3fb950;
+            --accent-orange: #f0883e;
+        }
+
+        .desktop {
+            height: 100%;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            direction: rtl;
+            padding: 20px;
+        }
+
+        .table-container {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        .table-header {
+            padding: 15px 20px;
+            background: #21262d;
+            border-bottom: 2px solid var(--accent-red);
+            display: flex;
+            align-items: center;
+        }
+
+        .table-header img {
+            height: 40px;
+            width: 40px;
+            margin-right: 15px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: right;
+        }
+
+        th {
+            background-color: #21262d;
+            color: #8b949e;
+            padding: 15px;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+        }
+
+        td {
+            padding: 12px 15px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        tr:hover {
+            background-color: #1f242c;
+        }
+
+        /* نمط الأرقام المعقدة */
+        .mono {
+            font-family: 'Courier New', Courier, monospace;
+            color: #58a6ff;
+            letter-spacing: 1px;
+        }
+
+        /* تنبيهات المخاطر */
+        .high-risk {
+            background-color: rgba(248, 81, 73, 0.05);
+        }
+
+        .badge {
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+
+        .red {
+            background: rgba(248, 81, 73, 0.2);
+            color: var(--accent-red);
+            border: 1px solid var(--accent-red);
+        }
+
+        .green {
+            background: rgba(63, 185, 80, 0.2);
+            color: var(--accent-green);
+            border: 1px solid var(--accent-green);
+        }
+
+        .orange {
+            background: rgba(240, 136, 62, 0.2);
+            color: var(--accent-orange);
+            border: 1px solid var(--accent-orange);
+        }
+
+        .taskbar {
+            width: 100%;
+            height: 48px;
+            background: #D7DFF6;
+            backdrop-filter: blur(15px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .taskbar img {
+            height: 24px;
+            margin: 0 15px;
+            cursor: pointer;
+        }
+
+        .taskbar .active {
+            padding: 2px;
+            background-color: #5050504f;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .taskbar img:hover {
+            transform: scale(1.1);
+            transition: transform 0.2s;
+        }
+        #fullscreenBtn {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px 15px;
+            background-color: #d70000;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            z-index: 10000;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+    </style>
+    </style>
+</head>
+
+<body>
+    <button id="fullscreenBtn" onclick="openFullscreen();">
+        دخول لوضع الشاشة الكاملة
+    </button>
+    <div class="rotate-warning">
+        <svg viewBox="0 0 24 24">
+            <path
+                d="M16,4.66V17.34c0,1.45-1.18,2.63-2.63,2.63H6.66C5.21,20,4,18.82,4,17.37V4.66C4,3.21,5.21,2,6.66,2h6.71C14.82,2,16,3.21,16,4.66z M14,17.34V4.66C14,4.29,13.71,4,13.37,4H6.63C6.29,4,6,4.29,6,4.66v12.68C6,17.71,6.29,18,6.63,18h6.74C13.71,18,14,17.71,14,17.34z" />
+        </svg>
+        <h2>يرجى تدوير الهاتف</h2>
+        <p>يجب استخدام الوضع الأفقي</p>
+    </div>
+
+    <div id="lockscreen-container">
+        <div class="content">
+            <div class="profile"></div>
+            <h1 class="user-name">Abdulrahman</h1>
+
+            <div class="input-group">
+                <input id="passInput" class="password" type="password" placeholder="Enter Password">
+                <button onclick="checkPassword()" class="submit-btn">→</button>
+            </div>
+
+            <h3 class="hint">كلمة السر في ال index</h3>
+        </div>
+    </div>
+    <div id="desktop-screen">
+        <div class="desktop">
+            <div class="table-container">
+                <div class="table-header">
+                    <h2>نظام مراقبة التحويلات المشبوهة | Global Transaction Monitor </h2>
+                    <img src="/images/GTM.png" alt="">
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>معرف الصفقة</th>
+                            <th>رقم الحساب (IBAN)</th>
+                            <th>الدولة</th>
+                            <th>المبلغ (USD)</th>
+                            <th>درجة المخاطرة</th>
+                            <th>الحالة</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="high-risk">
+                            <td>#TRX-48317</td>
+                            <td><span style="cursor: pointer;" onclick="window.location.href='deal1.html'" class="mono">KY93 0000 8000 1234 5678</span></td>
+                            <td>جزر الكايمان</td>
+                            <td>$2,450,000.00</td>
+                            <td>عالية جداً</td>
+                            <td><span class="badge red">تحت الفحص</span></td>
+                        </tr>
+                        <tr>
+                            <td >#TRX-76094</td>
+                            <td><span style="cursor: pointer;" onclick="window.location.href='deal2.html'" class="mono">GB71 0000 8000 8765 4321</span></td>
+                            <td>المملكة المتحدة</td>
+                            <td>$12,300.50</td>
+                            <td>منخفضة</td>
+                            <td><span class="badge green">مقبول</span></td>
+                        </tr>
+                        <tr class="mid-risk">
+                            <td>#TRX-90241</td>
+                            <td><span style="cursor: pointer;" onclick="window.location.href='deal3.html'" class="mono">AE58 0000 8000 1122 3344</span></td>
+                            <td>الإمارات</td>
+                            <td>$450,000.00</td>
+                            <td>متوسطة</td>
+                            <td><span class="badge orange">معلق</span></td>
+                        </tr>
+                        <tr class="high-risk">
+                            <td>#TRX-35789</td>
+                            <td><span style="cursor: pointer;" onclick="window.location.href='deal4.html'" class="mono">SY42 0000 8000 9988 7766</span></td>
+                            <td>سوريا </td>
+                            <td>$6,450,000.00</td>
+                            <td>عالية جداً</td>
+                            <td><span class="badge red">تحت الفحص</span></td>
+                        </tr>
+                        <tr class="high-risk">
+                            <td>#TRX-61402</td>
+                            <td><span style="cursor: pointer;" onclick="window.location.href='deal5.html'" class="mono">IR66 0000 8000 4455 6677</span></td>
+                            <td>ايران </td>
+                            <td>$6,450,000.00</td>
+                            <td>عالية جداً</td>
+                            <td><span class="badge red">تحت الفحص</span></td>
+                        </tr>
+                        <tr>
+                            <td>#TRX-87936</td>
+                            <td><span style="cursor: pointer;" onclick="window.location.href='deal6.html'" class="mono">TR81 0000 8000 1357 2468</span></td>
+                            <td>تركيا </td>
+                            <td>$12,300.50</td>
+                            <td>منخفضة</td>
+                            <td><span class="badge green">مقبول</span></td>
+                        </tr>
+                        <tr>
+                            <td>#TRX-24095</td>
+                            <td><span style="cursor: pointer;" onclick="window.location.href='deal7.html'" class="mono">SY39 0000 8000 2468 1357</span></td>
+                            <td>سوريا </td>
+                            <td>$12,300.50</td>
+                            <td>منخفضة</td>
+                            <td><span class="badge green">مقبول</span></td>
+                        </tr>
+                        <tr class="mid-risk">
+                            <td>#TRX-77810</td>
+                            <td><span style="cursor: pointer;" onclick="window.location.href='deal8.html'" class="mono">DZ24 0000 8000 5555 9999</span></td>
+                            <td>الجزائر</td>
+                            <td>$700,000.00</td>
+                            <td>متوسطة</td>
+                            <td><span class="badge orange">معلق</span></td>
+                        </tr>
+
+
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="taskbar">
+            <!-- <p style="font-size: 12px; color: #333;">Start | Search | Widgets</p> -->
+            <img src="/images/start-menu-icon.svg" alt="start-menu-icon">
+            <img src="/images/search.png" alt="search">
+            <img src="/images/swichDes.png" alt="swichDes">
+            <div class="active"><img src="/images/GTM.png" alt="GTM Icon"></div>
+        </div>
+    </div>
+    <script>
+        function openFullscreen() {
+            let elem = document.documentElement;
+            let btn = document.getElementById("fullscreenBtn");
+
+            // تفعيل وضع الشاشة الكاملة
+            if (elem.requestFullscreen) {
+                elem.requestFullscreen();
+            } else if (elem.webkitRequestFullscreen) { /* Safari */
+                elem.webkitRequestFullscreen();
+            } else if (elem.msRequestFullscreen) { /* IE11 */
+                elem.msRequestFullscreen();
+            }
+
+            // إخفاء الزر فوراً بعد الضغط
+            btn.style.display = "none";
+        }
+
+        // إضافة مستمع للأحداث لإظهار الزر مرة أخرى إذا خرج المستخدم من وضع ملء الشاشة
+        document.addEventListener('fullscreenchange', () => {
+            let btn = document.getElementById("fullscreenBtn");
+            if (!document.fullscreenElement) {
+                // إذا خرج من الشاشة الكاملة، يظهر الزر مجدداً
+                btn.style.display = "block";
+            }
+        });
+
+        function checkPassword() {
+            const input = document.getElementById('passInput').value;
+            const lockScreen = document.getElementById('lockscreen-container');
+            const desktop = document.getElementById('desktop-screen');
+
+            if (input === "0000") {
+                // تفعيل حركة الصعود للاختفاء
+                lockScreen.classList.add('unlock-animation');
+
+                // إظهار سطح المكتب
+                desktop.style.opacity = "1";
+
+                // تنظيف الكود البرمجي من الذاكرة بعد الحركة
+                setTimeout(() => {
+                    lockScreen.style.display = "none";
+                }, 800);
+            } else {
+                alert("كلمة سر خاطئة، حاول مجدداً!");
+                document.getElementById('passInput').value = "";
+            }
+        }
+
+        // السماح بالدخول عند الضغط على زر Enter
+        document.getElementById('passInput').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') {
+                checkPassword();
+            }
+        });
+    </script>
+
+</body>
+
+</html>
